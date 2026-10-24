@@ -1,2 +1,15 @@
 
 /exam-template/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Local Python environments
+.venv/
+venv/
+
+# Environment files and secrets
+.env
+.env.*
