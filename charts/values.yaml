@@ -2,7 +2,7 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 3
+replicaCount: 1
 
 image:
   repository: sajjadhz/fastapiapp
@@ -10,8 +10,7 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
-imagePullSecrets: 
-  - name: "regcred"
+imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
@@ -38,9 +37,8 @@ securityContext: {}
   # runAsUser: 1000
 
 service:
-  type: NodePort
+  type: ClusterIP
   port: 80
-  nodePort: 30007  
   targetPort: 8000
 
 ingress:
@@ -83,3 +81,15 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+# FastAPI application configuration
+healthPath: /docs
+
+database:
+  host: ""
+  name: ""
+  username: ""
+  passwordSecret: jenkins-postgres-credentials
+  passwordKey: ""
+
+castServiceUrl: ""

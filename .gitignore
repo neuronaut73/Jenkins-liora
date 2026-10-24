@@ -13,3 +13,6 @@ venv/
 # Environment files and secrets
 .env
 .env.*
+
+# Local Kubernetes database configuration with demo credentials
+/k8s/postgres.yaml
