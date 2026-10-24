@@ -16,3 +16,6 @@ venv/
 
 # Local Kubernetes database configuration with demo credentials
 /k8s/postgres.yaml
+
+# Exam submission archive
+/nikolaus_wrede_liora_2026.zip
