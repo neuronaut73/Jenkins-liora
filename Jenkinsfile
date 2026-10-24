@@ -1,8 +1,15 @@
+
 pipeline {
     agent any
 
     options {
         timestamps()
+    }
+
+    environment {
+        DOCKERHUB_USER = 'neuronaut73'
+        MOVIE_IMAGE = 'neuronaut73/jenkins-exam-movie'
+        CAST_IMAGE = 'neuronaut73/jenkins-exam-cast'
     }
 
     stages {
@@ -12,34 +19,55 @@ pipeline {
             }
         }
 
-        stage('Build Movie Service') {
+        stage('Build Docker Images') {
             steps {
-                sh 'docker build -t jenkins-exam-movie:ci ./movie-service'
-            }
-        }
-
-        stage('Build Cast Service') {
-            steps {
-                sh 'docker build -t jenkins-exam-cast:ci ./cast-service'
+                sh '''
+                    docker build -t ${MOVIE_IMAGE}:${BUILD_NUMBER} ./movie-service
+                    docker build -t ${CAST_IMAGE}:${BUILD_NUMBER} ./cast-service
+                '''
             }
         }
 
         stage('Verify Images') {
             steps {
                 sh '''
-                    docker image inspect jenkins-exam-movie:ci
-                    docker image inspect jenkins-exam-cast:ci
+                    docker image inspect ${MOVIE_IMAGE}:${BUILD_NUMBER} > /dev/null
+                    docker image inspect ${CAST_IMAGE}:${BUILD_NUMBER} > /dev/null
                 '''
+            }
+        }
+
+        stage('Push to DockerHub') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        set +x
+                        echo "$DOCKER_TOKEN" | docker login \
+                            --username "$DOCKER_USER" \
+                            --password-stdin
+
+                        docker push ${MOVIE_IMAGE}:${BUILD_NUMBER}
+                        docker push ${CAST_IMAGE}:${BUILD_NUMBER}
+
+                        docker logout
+                    '''
+                }
             }
         }
     }
 
     post {
         success {
-            echo 'CI pipeline completed successfully!'
+            echo 'Docker images successfully built and pushed!'
         }
         failure {
-            echo 'CI pipeline failed. Check the console output.'
+            echo 'Pipeline failed. Check console output.'
         }
     }
 }
