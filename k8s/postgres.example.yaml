@@ -1,0 +1,152 @@
+# Example PostgreSQL infrastructure for the Jenkins exam.
+# Replace both password placeholders before deployment.
+# Never commit real credentials.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-postgres-credentials
+type: Opaque
+stringData:
+  movie-password: REPLACE_WITH_MOVIE_DB_PASSWORD
+  cast-password: REPLACE_WITH_CAST_DB_PASSWORD
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-movie-postgres-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-cast-postgres-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-movie-postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: jenkins-movie-postgres
+  template:
+    metadata:
+      labels:
+        app: jenkins-movie-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: movie_db_dev
+        - name: POSTGRES_USER
+          value: movie_db_username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jenkins-postgres-credentials
+              key: movie-password
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: jenkins-movie-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-movie-postgres
+spec:
+  selector:
+    app: jenkins-movie-postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-cast-postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: jenkins-cast-postgres
+  template:
+    metadata:
+      labels:
+        app: jenkins-cast-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: cast_db_dev
+        - name: POSTGRES_USER
+          value: cast_db_username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jenkins-postgres-credentials
+              key: cast-password
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: jenkins-cast-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-cast-postgres
+spec:
+  selector:
+    app: jenkins-cast-postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
