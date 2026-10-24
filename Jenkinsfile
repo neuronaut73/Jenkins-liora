@@ -9,6 +9,7 @@ pipeline {
 
     environment {
         KUBECONFIG = '/etc/rancher/k3s/k3s.yaml'
+        IMAGE_TAG = "${env.JOB_NAME}-${env.BUILD_NUMBER}"
         DOCKERHUB_USER = 'neuronaut73'
         MOVIE_IMAGE = 'neuronaut73/jenkins-exam-movie'
         CAST_IMAGE = 'neuronaut73/jenkins-exam-cast'
@@ -19,6 +20,14 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+
+                sh '''
+                    echo "Jenkins job: ${JOB_NAME}"
+                    echo "Git revision:"
+                    git rev-parse HEAD
+                    echo "Git remote branches:"
+                    git branch -r
+                '''
             }
         }
 
@@ -28,11 +37,11 @@ pipeline {
                     set -e
 
                     docker build \
-                      -t ${MOVIE_IMAGE}:${BUILD_NUMBER} \
+                      -t ${MOVIE_IMAGE}:${IMAGE_TAG} \
                       ./movie-service
 
                     docker build \
-                      -t ${CAST_IMAGE}:${BUILD_NUMBER} \
+                      -t ${CAST_IMAGE}:${IMAGE_TAG} \
                       ./cast-service
                 '''
             }
@@ -44,10 +53,10 @@ pipeline {
                     set -e
 
                     docker image inspect \
-                      ${MOVIE_IMAGE}:${BUILD_NUMBER} > /dev/null
+                      ${MOVIE_IMAGE}:${IMAGE_TAG} > /dev/null
 
                     docker image inspect \
-                      ${CAST_IMAGE}:${BUILD_NUMBER} > /dev/null
+                      ${CAST_IMAGE}:${IMAGE_TAG} > /dev/null
 
                     echo "Both Docker images verified."
                 '''
@@ -71,8 +80,8 @@ pipeline {
                           --username "$DOCKER_USER" \
                           --password-stdin
 
-                        docker push ${MOVIE_IMAGE}:${BUILD_NUMBER}
-                        docker push ${CAST_IMAGE}:${BUILD_NUMBER}
+                        docker push ${MOVIE_IMAGE}:${IMAGE_TAG}
+                        docker push ${CAST_IMAGE}:${IMAGE_TAG}
 
                         docker logout
                     '''
@@ -103,23 +112,89 @@ pipeline {
                 }
             }
         }
+
+        stage('Approve Production') {
+            when {
+                expression {
+                    return isProductionBranch()
+                }
+            }
+
+            steps {
+                timeout(time: 30, unit: 'MINUTES') {
+                    input(
+                        message: 'Deploy Movie and Cast to PRODUCTION?',
+                        ok: 'Approve Deployment',
+                        submitter: 'jenkins'
+                    )
+                }
+            }
+        }
+
+        stage('Deploy to PROD') {
+            when {
+                expression {
+                    return isProductionBranch()
+                }
+            }
+
+            steps {
+                script {
+                    deployEnvironment('prod')
+                }
+            }
+        }
     }
 
     post {
         success {
             echo 'CI/CD pipeline completed successfully.'
-            echo "Docker image tag: ${env.BUILD_NUMBER}"
-            echo 'Applications deployed to DEV, QA and STAGING.'
+            echo "Docker image tag: ${env.IMAGE_TAG}"
         }
 
         failure {
             echo 'Pipeline failed. Check the Jenkins console output.'
         }
 
+        aborted {
+            echo 'Pipeline aborted or production approval timed out.'
+        }
+
         always {
             echo "Build finished: ${env.BUILD_URL}"
         }
     }
+}
+
+
+// Verify that this is the production job
+// AND the checked-out commit belongs to origin/master.
+def isProductionBranch() {
+
+    if (env.JOB_NAME != 'Jenkins-Liora-Production') {
+        echo 'Production skipped: not the production Jenkins job.'
+        return false
+    }
+
+    def result = sh(
+        script: '''
+            set -e
+
+            git fetch origin master
+
+            test "$(git rev-parse HEAD)" = \
+                 "$(git rev-parse refs/remotes/origin/master)"
+        ''',
+        returnStatus: true
+    )
+
+    if (result != 0) {
+        echo 'Production skipped: checked-out commit is not origin/master.'
+        return false
+    }
+
+    echo 'Production branch verification successful.'
+    return true
 }
 
 
@@ -136,7 +211,7 @@ def deployEnvironment(String namespace) {
         helm upgrade --install jenkins-cast ./charts \\
           --namespace ${namespace} \\
           --set image.repository=\${CAST_IMAGE} \\
-          --set-string image.tag=\${BUILD_NUMBER} \\
+          --set-string image.tag=\${IMAGE_TAG} \\
           --set database.host=jenkins-cast-postgres \\
           --set database.name=cast_db_dev \\
           --set database.username=cast_db_username \\
@@ -149,7 +224,7 @@ def deployEnvironment(String namespace) {
         helm upgrade --install jenkins-movie ./charts \\
           --namespace ${namespace} \\
           --set image.repository=\${MOVIE_IMAGE} \\
-          --set-string image.tag=\${BUILD_NUMBER} \\
+          --set-string image.tag=\${IMAGE_TAG} \\
           --set database.host=jenkins-movie-postgres \\
           --set database.name=movie_db_dev \\
           --set database.username=movie_db_username \\
