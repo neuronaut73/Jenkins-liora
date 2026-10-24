@@ -8,6 +8,7 @@ pipeline {
     }
 
     environment {
+        KUBECONFIG = '/etc/rancher/k3s/k3s.yaml'
         DOCKERHUB_USER = 'neuronaut73'
         MOVIE_IMAGE = 'neuronaut73/jenkins-exam-movie'
         CAST_IMAGE = 'neuronaut73/jenkins-exam-cast'
