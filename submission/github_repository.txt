@@ -1,0 +1,5 @@
+GitHub repository:
+https://github.com/neuronaut73/Jenkins-liora
+
+Main branch: main
+Production branch: master

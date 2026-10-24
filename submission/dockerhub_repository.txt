@@ -1,0 +1,7 @@
+DockerHub repositories:
+
+Movie Service:
+https://hub.docker.com/r/neuronaut73/jenkins-exam-movie
+
+Cast Service:
+https://hub.docker.com/r/neuronaut73/jenkins-exam-cast
